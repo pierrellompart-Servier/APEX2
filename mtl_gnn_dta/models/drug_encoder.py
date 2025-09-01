@@ -247,3 +247,136 @@ class MessagePassingNet(nn.Module):
         
         # Output
         return self.output(h)
+
+
+"""Drug encoder using Graph Neural Networks including GVP option"""
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch_geometric.nn import GCNConv, GINConv, global_mean_pool, global_max_pool, global_add_pool
+from typing import List, Optional
+from mtl_gnn_dta.models.gvp_layers import GVP, LayerNorm, GVPConvLayer
+
+
+class DrugGVPModel(nn.Module):
+    """Drug encoder using Geometric Vector Perceptrons"""
+    
+    def __init__(self,
+                 node_in_dim: List[int] = [66, 1],
+                 node_h_dim: List[int] = [128, 64],
+                 edge_in_dim: List[int] = [16, 1],
+                 edge_h_dim: List[int] = [32, 1],
+                 num_layers: int = 3,
+                 drop_rate: float = 0.1):
+        super(DrugGVPModel, self).__init__()
+        
+        self.W_v = nn.Sequential(
+            LayerNorm(node_in_dim),
+            GVP(node_in_dim, node_h_dim, activations=(None, None))
+        )
+        
+        self.W_e = nn.Sequential(
+            LayerNorm(edge_in_dim),
+            GVP(edge_in_dim, edge_h_dim, activations=(None, None))
+        )
+        
+        self.layers = nn.ModuleList(
+            GVPConvLayer(node_h_dim, edge_h_dim, drop_rate=drop_rate)
+            for _ in range(num_layers)
+        )
+        
+        ns, _ = node_h_dim
+        self.W_out = nn.Sequential(
+            LayerNorm(node_h_dim),
+            GVP(node_h_dim, (ns, 0))
+        )
+    
+    def forward(self, batch):
+        """Forward pass through Drug GVP model"""
+        # Unpack node and edge features
+        h_V = (batch.node_s, batch.node_v) if hasattr(batch, 'node_s') else (batch.x, None)
+        h_E = (batch.edge_s, batch.edge_v) if hasattr(batch, 'edge_s') else None
+        
+        # Initial transformations
+        h_V = self.W_v(h_V)
+        if h_E is not None:
+            h_E = self.W_e(h_E)
+        
+        # Message passing layers
+        for layer in self.layers:
+            h_V = layer(h_V, batch.edge_index, h_E)
+        
+        # Output transformation
+        out = self.W_out(h_V)
+        
+        # Global pooling
+        out = global_add_pool(out, batch.batch)
+        return out
+
+
+class DrugGCN(nn.Module):
+    """Graph Convolutional Network for drug/ligand representation"""
+    
+    def __init__(self,
+                 node_in_dim: int = 66,
+                 node_h_dims: List[int] = [128, 256, 128],
+                 fc_dims: List[int] = [1024, 128],
+                 dropout: float = 0.2,
+                 use_edge_features: bool = True):
+        super(DrugGCN, self).__init__()
+        
+        self.dropout = dropout
+        self.use_edge_features = use_edge_features
+        
+        # Initial node embedding
+        self.node_embedding = nn.Linear(node_in_dim, node_h_dims[0])
+        
+        # GCN layers
+        self.gcn_layers = nn.ModuleList()
+        in_dim = node_h_dims[0]
+        for out_dim in node_h_dims[1:]:
+            self.gcn_layers.append(GCNConv(in_dim, out_dim))
+            in_dim = out_dim
+        
+        # FC layers
+        self.fc_layers = nn.ModuleList()
+        in_dim = node_h_dims[-1] * 2  # Concatenate mean and max pooling
+        for out_dim in fc_dims:
+            self.fc_layers.append(nn.Linear(in_dim, out_dim))
+            in_dim = out_dim
+        
+        # Batch normalization
+        self.bn_layers = nn.ModuleList([
+            nn.BatchNorm1d(dim) for dim in node_h_dims[1:]
+        ])
+        
+        self.dropout_layer = nn.Dropout(dropout)
+    
+    def forward(self, x, edge_index, edge_attr, batch):
+        """Forward pass through drug GCN"""
+        # Initial embedding
+        x = self.node_embedding(x)
+        x = F.relu(x)
+        x = self.dropout_layer(x)
+        
+        # GCN layers
+        for i, gcn in enumerate(self.gcn_layers):
+            x = gcn(x, edge_index)
+            x = self.bn_layers[i](x)
+            x = F.relu(x)
+            x = self.dropout_layer(x)
+        
+        # Global pooling
+        x_mean = global_mean_pool(x, batch)
+        x_max = global_max_pool(x, batch)
+        x = torch.cat([x_mean, x_max], dim=1)
+        
+        # FC layers
+        for i, fc in enumerate(self.fc_layers):
+            x = fc(x)
+            if i < len(self.fc_layers) - 1:
+                x = F.relu(x)
+                x = self.dropout_layer(x)
+        
+        return x
