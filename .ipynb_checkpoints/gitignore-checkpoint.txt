@@ -1,0 +1,95 @@
+# ===================================================
+# File: .gitignore
+# ===================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.conda/
+.mamba/
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Data (but keep directory structure)
+data/raw/*
+data/processed/*
+data/structures/*
+data/embeddings/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/structures/.gitkeep
+!data/embeddings/.gitkeep
+
+# Models and checkpoints
+models/*.pt
+models/*.pth
+experiments/checkpoints/*
+experiments/logs/*
+*.ckpt
+
+# Logs
+*.log
+logs/
+wandb/
+tensorboard/
+
+# Cache
+.cache/
+cache/
+*.cache
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Documentation
+docs/_build/
+docs/build/
+
+# Environment variables
+.env
+.env.*
+
+# Temporary files
+*.tmp
+*.bak
+temp/
+tmp/
