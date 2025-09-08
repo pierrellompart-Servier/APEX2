@@ -1,0 +1,14 @@
+{
+  "num_chunks": 1,
+  "chunk_size": 100000,
+  "total_structures": 1,
+  "chunks": [
+    {
+      "chunk_idx": 0,
+      "filename": "structures_chunk_0000.json",
+      "path": "gnn_dta_mtl/input/chunk/structures_chunk_0000.json",
+      "num_structures": 1,
+      "num_errors": 0
+    }
+  ]
+}

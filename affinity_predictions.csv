@@ -1,0 +1,2 @@
+protein_path,ligand_path,pKi,pEC50,pKd,pIC50
+./gnn_dta_mtl/output/protein/6OH4.pdb,./gnn_dta_mtl/output/ligand/6OH4.sdf,,,,

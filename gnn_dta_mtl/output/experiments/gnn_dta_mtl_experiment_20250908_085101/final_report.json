@@ -1,0 +1,108 @@
+{
+  "experiment_name": "gnn_dta_mtl_experiment",
+  "timestamp": "2025-09-08T10:24:32.914822",
+  "config": {
+    "data_path": "./gnn_dta_mtl/input/combined/df_combined.parquet",
+    "protein_out_dir": "./gnn_dta_mtl/output/protein",
+    "ligand_out_dir": "./gnn_dta_mtl/output/ligand",
+    "structure_chunks_dir": "./gnn_dta_mtl/input/chunk/",
+    "embeddings_dir": "./gnn_dta_mtl/input/embeddings/",
+    "output_dir": "./gnn_dta_mtl/output/experiments/",
+    "task_cols": [
+      "pKi",
+      "pEC50",
+      "pKd",
+      "pIC50"
+    ],
+    "model_config": {
+      "prot_emb_dim": 1280,
+      "prot_gcn_dims": [
+        128,
+        256,
+        256
+      ],
+      "prot_fc_dims": [
+        1024,
+        128
+      ],
+      "drug_node_in_dim": [
+        66,
+        1
+      ],
+      "drug_node_h_dims": [
+        128,
+        64
+      ],
+      "drug_edge_in_dim": [
+        16,
+        1
+      ],
+      "drug_edge_h_dims": [
+        32,
+        1
+      ],
+      "drug_fc_dims": [
+        1024,
+        128
+      ],
+      "mlp_dims": [
+        1024,
+        512
+      ],
+      "mlp_dropout": 0.25
+    },
+    "training_config": {
+      "batch_size": 128,
+      "n_epochs": 100,
+      "learning_rate": 0.0005,
+      "patience": 20,
+      "n_folds": 5
+    },
+    "filter_config": {
+      "min_heavy_atoms": 5,
+      "max_heavy_atoms": 75,
+      "max_mw": 1000,
+      "min_carbons": 4,
+      "min_le": 0.05,
+      "max_le_norm": 0.003
+    },
+    "n_workers": 11,
+    "chunk_size": 100000,
+    "sample_size": null,
+    "esm_model_name": "facebook/esm2_t33_650M_UR50D",
+    "experiment_dir": "gnn_dta_mtl/output/experiments/gnn_dta_mtl_experiment_20250908_085101"
+  },
+  "data_stats": {
+    "total_samples": 4804,
+    "train_samples": 3363,
+    "valid_samples": 480,
+    "test_samples": 961
+  },
+  "cv_summary": {
+    "pKi": {
+      "r2_mean": 0.5107817769050598,
+      "r2_std": 0.0691033031867813,
+      "rmse_mean": 1.1011199146213655,
+      "rmse_std": 0.07772023784940409,
+      "n_samples": 4804
+    }
+  },
+  "test_results": {
+    "pKi": {
+      "rmse": 1.0674981197188744,
+      "mae": 0.8202599287033081,
+      "r2": 0.5372203588485718,
+      "pearson_r": "0.79672015",
+      "pearson_p": 5.807067902979807e-212,
+      "spearman_r": 0.8025060170692051,
+      "spearman_p": 2.6132952496051605e-217,
+      "mape": 0.13564561307430267,
+      "mean_true": "6.866221",
+      "mean_pred": "7.3301563",
+      "std_true": "1.5692061",
+      "std_pred": "1.4081857",
+      "n_samples": 961,
+      "c_index": 0.8062345861266456
+    }
+  }
+}

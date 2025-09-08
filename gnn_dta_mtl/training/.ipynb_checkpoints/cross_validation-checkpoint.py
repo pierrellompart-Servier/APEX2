@@ -8,13 +8,14 @@ import torch_geometric
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import KFold
+from sklearn.metrics import r2_score, mean_squared_error
 from typing import Dict, List, Tuple, Optional, Any
 from tqdm import tqdm
+import math
 
 from ..models import MTL_DTAModel
 from ..models.losses import MaskedMSELoss
 from ..datasets import build_mtl_dataset_optimized
-from ..evaluation import calculate_metrics
 from .early_stopping import EarlyStopping
 
 
@@ -136,6 +137,10 @@ class CrossValidator:
                 
                 train_loss += loss.item()
                 n_train_batches += 1
+                
+                # Clear cache periodically
+                if n_train_batches % 20 == 0:
+                    torch.cuda.empty_cache()
             
             avg_train_loss = train_loss / n_train_batches if n_train_batches > 0 else 0
             train_losses.append(avg_train_loss)
@@ -172,6 +177,10 @@ class CrossValidator:
             if stopper.early_stop:
                 print(f"Early stopping at epoch {epoch+1}")
                 break
+            
+            # Periodic cleanup
+            if epoch % 10 == 0:
+                torch.cuda.empty_cache()
         
         # Load best model
         if best_model_state is not None:
@@ -195,4 +204,145 @@ class CrossValidator:
                     mask = ~torch.isnan(y[:, i])
                     if mask.sum() > 0:
                         task_predictions[task].extend(pred[mask, i].cpu().numpy())
-                        task_
+                        task_targets[task].extend(y[mask, i].cpu().numpy())
+        
+        # Calculate metrics
+        fold_results = {}
+        for task in self.task_cols:
+            if len(task_predictions[task]) > 0:
+                preds = np.array(task_predictions[task])
+                targets = np.array(task_targets[task])
+                
+                r2 = r2_score(targets, preds)
+                rmse = math.sqrt(mean_squared_error(targets, preds))
+                
+                fold_results[task] = {
+                    'predictions': preds,
+                    'targets': targets,
+                    'r2': r2,
+                    'rmse': rmse
+                }
+        
+        # Clean up
+        del model
+        del optimizer
+        torch.cuda.empty_cache()
+        gc.collect()
+        
+        return fold_results, train_losses, val_losses
+    
+    def run(
+        self,
+        df: pd.DataFrame,
+        chunk_loader
+    ) -> Dict[str, Any]:
+        """
+        Run full cross-validation.
+        
+        Args:
+            df: Full dataset
+            chunk_loader: Structure chunk loader
+            
+        Returns:
+            Cross-validation results
+        """
+        kf = KFold(n_splits=self.n_folds, shuffle=True, random_state=self.seed)
+        
+        print(f"\nStarting {self.n_folds}-fold cross-validation...")
+        print("="*70)
+        
+        for fold_idx, (train_idx, test_idx) in enumerate(kf.split(df)):
+            # Split data
+            df_train = df.iloc[train_idx].reset_index(drop=True)
+            df_test = df.iloc[test_idx].reset_index(drop=True)
+            
+            # Create validation set (10% of training)
+            valid_size = int(0.1 * len(df_train))
+            df_valid = df_train.sample(n=valid_size, random_state=self.seed)
+            df_train = df_train.drop(df_valid.index).reset_index(drop=True)
+            
+            print(f"\nFold {fold_idx + 1} sizes:")
+            print(f"  Train: {len(df_train)}")
+            print(f"  Valid: {len(df_valid)}")
+            print(f"  Test:  {len(df_test)}")
+            
+            # Build datasets
+            from ..datasets import build_mtl_dataset_optimized
+            
+            train_dataset = build_mtl_dataset_optimized(df_train, chunk_loader, self.task_cols)
+            valid_dataset = build_mtl_dataset_optimized(df_valid, chunk_loader, self.task_cols)
+            test_dataset = build_mtl_dataset_optimized(df_test, chunk_loader, self.task_cols)
+            
+            # Create data loaders
+            train_loader = torch_geometric.loader.DataLoader(
+                train_dataset,
+                batch_size=self.batch_size,
+                shuffle=True,
+                num_workers=0,
+                pin_memory=True
+            )
+            
+            valid_loader = torch_geometric.loader.DataLoader(
+                valid_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                num_workers=0,
+                pin_memory=True
+            )
+            
+            test_loader = torch_geometric.loader.DataLoader(
+                test_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                num_workers=0,
+                pin_memory=True
+            )
+            
+            # Train fold
+            fold_results, train_losses, val_losses = self.train_fold(
+                fold_idx, train_loader, valid_loader, test_loader
+            )
+            
+            # Store results
+            for task in self.task_cols:
+                if task in fold_results:
+                    self.cv_results[task]['r2_list'].append(fold_results[task]['r2'])
+                    self.cv_results[task]['rmse_list'].append(fold_results[task]['rmse'])
+                    self.cv_results[task]['all_predictions'].extend(fold_results[task]['predictions'])
+                    self.cv_results[task]['all_targets'].extend(fold_results[task]['targets'])
+            
+            # Clean up after each fold
+            torch.cuda.empty_cache()
+            gc.collect()
+        
+        # Calculate summary statistics
+        self._calculate_summary()
+        
+        return self.cv_results
+    
+    def _calculate_summary(self):
+        """Calculate summary statistics for CV results."""
+        self.summary = {}
+        
+        for task in self.task_cols:
+            if len(self.cv_results[task]['r2_list']) > 0:
+                self.summary[task] = {
+                    'r2_mean': np.mean(self.cv_results[task]['r2_list']),
+                    'r2_std': np.std(self.cv_results[task]['r2_list']),
+                    'rmse_mean': np.mean(self.cv_results[task]['rmse_list']),
+                    'rmse_std': np.std(self.cv_results[task]['rmse_list']),
+                    'n_samples': len(self.cv_results[task]['all_targets'])
+                }
+    
+    def print_summary(self):
+        """Print cross-validation summary."""
+        print("\n" + "="*70)
+        print("CROSS-VALIDATION SUMMARY")
+        print("="*70)
+        
+        if hasattr(self, 'summary'):
+            for task, metrics in self.summary.items():
+                print(f"\n{task}:")
+                print(f"  R²:    {metrics['r2_mean']:.3f} ± {metrics['r2_std']:.3f}")
+                print(f"  RMSE:  {metrics['rmse_mean']:.3f} ± {metrics['rmse_std']:.3f}")
+                print(f"  Total samples: {metrics['n_samples']}")
