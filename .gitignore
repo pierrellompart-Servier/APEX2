@@ -97,3 +97,9 @@ gnn_dta_mtl/notebooks/checkpoints/*
 
 Thumbs.db
 
+
+# Root level files to exclude
+/6OH4.pdb
+/1_dataTrainCuration.ipynb
+/2_train_validate.ipynb
+/affinity_predictions.csv
