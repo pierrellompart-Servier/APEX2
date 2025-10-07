@@ -2,7 +2,6 @@
 """
 GNN-DTA-MTL: Graph Neural Networks for Drug-Target Affinity with Multi-Task Learning
 """
-
 __version__ = "1.0.0"
 
 from .models.dta_model import DTAModel, MTL_DTAModel
@@ -50,8 +49,14 @@ from .data.molecular_properties import (
     compute_molecular_properties,
     add_molecular_properties_parallel,
     compute_ligand_efficiency,
-    compute_mean_ligand_efficiency,  # This was missing!
+    compute_mean_ligand_efficiency,
     filter_by_properties
+)
+
+# Add prediction module
+from .predict.prediction import (
+    DTAPredictor,
+    predict_affinity,
 )
 
 from .utils.constants import LETTER_TO_NUM, NUM_TO_LETTER, ATOM_VOCAB
@@ -60,7 +65,7 @@ from .utils.io_utils import (
     load_model, 
     save_results, 
     load_results,
-    create_output_dir  # This was also missing!
+    create_output_dir
 )
 from .utils.logger import setup_logger, ExperimentLogger
 from .utils.model_utils import ModelCheckpointer, count_parameters
@@ -111,15 +116,19 @@ __all__ = [
     'compute_molecular_properties',
     'add_molecular_properties_parallel',
     'compute_ligand_efficiency',
-    'compute_mean_ligand_efficiency',  # Added
+    'compute_mean_ligand_efficiency',
     'filter_by_properties',
+    
+    # Prediction
+    'DTAPredictor',
+    'predict_affinity',
     
     # Utils
     'save_model',
     'load_model',
     'save_results',
     'load_results',
-    'create_output_dir',  # Added
+    'create_output_dir',
     'setup_logger',
     'ExperimentLogger',
     'ModelCheckpointer',
