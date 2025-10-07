@@ -1,0 +1,11 @@
+target,ligand
+./test/245158.pdb,./test/245158.sdf
+./test/279794.pdb,./test/279794.sdf
+./test/203418.pdb,./test/203418.sdf
+./test/48008.pdb,./test/48008.sdf
+./test/434516.pdb,./test/434516.sdf
+./test/3705.pdb,./test/3705.sdf
+./test/323023.pdb,./test/323023.sdf
+./test/251630.pdb,./test/251630.sdf
+./test/472746.pdb,./test/472746.sdf
+./test/24704.pdb,./test/24704.sdf
